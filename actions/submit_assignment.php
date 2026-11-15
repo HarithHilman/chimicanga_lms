@@ -17,6 +17,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Check assignment deadline against MySQL server time (SR8 Enforcement)
+    $assignStmt = $pdo->prepare("
+        SELECT title, due_date, (due_date <= NOW()) AS is_expired
+        FROM assignments
+        WHERE assignment_id = ? AND course_id = ?
+    ");
+    $assignStmt->execute([$assignmentId, $courseId]);
+    $assignment = $assignStmt->fetch();
+
+    if (!$assignment) {
+        setFlash('error', 'Assignment not found.');
+        header("Location: ../course.php?id=$courseId");
+        exit;
+    }
+
+    if ((int)$assignment['is_expired'] === 1) {
+        logActivity($pdo, $studentId, 'Blocked Late Submission (SR8)', "Attempted late upload for '{$assignment['title']}' (Due: {$assignment['due_date']})");
+        setFlash('error', "Submission rejected (SR8): Deadline passed on {$assignment['due_date']}.");
+        header("Location: ../course.php?id=$courseId");
+        exit;
+    }
+
     if (!isset($_FILES['submission_file']) || $_FILES['submission_file']['error'] === UPLOAD_ERR_NO_FILE) {
         setFlash('error', 'Please select a file to upload.');
         header("Location: ../course.php?id=$courseId");

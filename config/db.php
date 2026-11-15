@@ -1,4 +1,6 @@
 <?php
+date_default_timezone_set('Asia/Kuala_Lumpur');
+
 if (session_status() === PHP_SESSION_NONE) {
     ini_set('session.cookie_httponly', '1');
     ini_set('session.use_strict_mode', '1');
@@ -36,6 +38,7 @@ $options = [
 
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
+    $pdo->exec("SET time_zone = '+08:00'");
 } catch (PDOException $e) {
     throw new RuntimeException('Database service unavailable.');
 }
