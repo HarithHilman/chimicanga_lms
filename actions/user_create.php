@@ -1,44 +1,43 @@
 <?php
 require_once __DIR__ . '/../includes/auth_guard.php';
+requireRole(['admin']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $role = $_POST['role'] ?? 'student';
-    $redirect = $_POST['redirect'] ?? '../admin/students.php';
+    $role        = in_array($_POST['role'] ?? '', ['student', 'lecturer', 'admin'], true) ? $_POST['role'] : 'student';
+    $redirectMap = ['student' => '../admin/students.php', 'lecturer' => '../admin/lecturers.php', 'admin' => '../admin/admins.php'];
+    $redirect    = $redirectMap[$role];
 
-    if (!in_array($role, ['student', 'lecturer', 'admin'], true)) {
-        setFlash('error', 'Invalid user role.');
-        header("Location: $redirect");
-        exit;
+    try {
+        // Syntactical & Buffer Overflow Length Bounds Validation
+        $staffId = validateStaffStudentIdSyntax($_POST['staff_student_id'] ?? '');
+        $name    = validateBoundedString($_POST['full_name'] ?? '', 'Full Name', 2, 120);
+        if (!preg_match("/^[a-zA-Z\s.'@-]{2,120}$/", $name)) {
+            throw new InvalidArgumentException('Full name contains invalid characters.');
+        }
+        $email   = validateEmailSyntax($_POST['email'] ?? '');
+        $dept    = validateBoundedString($_POST['department'] ?? '', 'Department', 0, 100);
+        $phone   = validatePhoneSyntax($_POST['phone'] ?? '');
+        $minLen  = max(8, (int) getSetting($pdo, 'min_password_length', '8'));
+        $rawPass = validateBoundedString($_POST['password'] ?? '', 'Password', $minLen, 128);
+
+        // Semantic Validation: Check duplicate Staff/Student ID or Email
+        $dupStmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE email = ? OR staff_student_id = ?");
+        $dupStmt->execute([$email, $staffId]);
+        if ((int)$dupStmt->fetchColumn() > 0) {
+            throw new InvalidArgumentException('A user with this Email or Staff/Student ID already exists.');
+        }
+
+        $hash = password_hash($rawPass, PASSWORD_DEFAULT);
+        $stmt = $pdo->prepare("INSERT INTO users (staff_student_id, full_name, email, password_hash, role, department, phone, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'active')");
+        $stmt->execute([$staffId, $name, $email, $hash, $role, $dept, $phone]);
+
+        logActivity($pdo, (int)$currentAdmin['user_id'], 'Created ' . ucfirst($role), "Created $role account: $name ($staffId)");
+        setFlash('success', ucfirst($role) . " account created successfully.");
+
+    } catch (InvalidArgumentException | OverflowException $e) {
+        setFlash('error', $e->getMessage());
     }
 
-    $idCode = trim($_POST['staff_student_id'] ?? '');
-    $name   = trim($_POST['full_name'] ?? '');
-    $email  = trim($_POST['email'] ?? '');
-    $dept   = trim($_POST['department'] ?? '');
-    $phone  = trim($_POST['phone'] ?? '');
-    $pass   = $_POST['password'] ?? '';
-    $minLen = (int) getSetting($pdo, 'min_password_length', '8');
-
-    if ($idCode === '' || $name === '' || $email === '' || strlen($pass) < $minLen) {
-        setFlash('error', "All required fields must be filled and password must be at least $minLen characters.");
-        header("Location: $redirect");
-        exit;
-    }
-
-    $check = $pdo->prepare("SELECT COUNT(*) FROM users WHERE email = ? OR staff_student_id = ?");
-    $check->execute([$email, $idCode]);
-    if ($check->fetchColumn() > 0) {
-        setFlash('error', 'Email or ID number already exists.');
-        header("Location: $redirect");
-        exit;
-    }
-
-    $hash = password_hash($pass, PASSWORD_DEFAULT);
-    $stmt = $pdo->prepare("INSERT INTO users (staff_student_id, full_name, email, password_hash, role, department, phone, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'active')");
-    $stmt->execute([$idCode, $name, $email, $hash, $role, $dept, $phone]);
-
-    logActivity($pdo, (int)$currentAdmin['user_id'], 'Created ' . ucfirst($role), "Created $role account: $name ($idCode)");
-    setFlash('success', ucfirst($role) . " account created successfully.");
     header("Location: $redirect");
     exit;
 }
