@@ -1,8 +1,9 @@
 <?php
 require_once __DIR__ . '/includes/header.php';
+requireRole(['student', 'lecturer']);
 
 $courseId = (int) ($_GET['id'] ?? 0);
-$stmt = $pdo->prepare("SELECT c.*, u.full_name AS instructor_name FROM courses c JOIN users u ON c.instructor_id = u.user_id WHERE c.course_id = ?");
+$stmt = $pdo->prepare("SELECT * FROM courses WHERE course_id = ?");
 $stmt->execute([$courseId]);
 $course = $stmt->fetch();
 
@@ -166,7 +167,7 @@ $assignments = $assignStmt->fetchAll();
                 <?php endforeach; ?>
             </div>
 
-            <?php if ($currentUser['role'] === 'instructor'): ?>
+            <?php if ($currentUser['role'] === 'lecturer'): ?>
                 <form action="actions/add_lesson.php" method="POST" class="mt-6 pt-5 border-t border-slate-100 space-y-3">
                     <h4 class="text-xs font-bold uppercase text-slate-700">Add New Lesson</h4>
                     <input type="hidden" name="course_id" value="<?= $courseId ?>">

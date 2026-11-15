@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../includes/auth_guard.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $currentUser['role'] === 'student') {
     $lessonId = (int) ($_POST['lesson_id'] ?? 0);
