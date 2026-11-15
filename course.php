@@ -112,6 +112,18 @@ $assignments = $assignStmt->fetchAll();
                     <?php endif; ?>
                 </div>
 
+                <?php if (!empty($activeLesson['file_path'])): ?>
+                    <div class="mb-4 p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-200 flex items-center justify-between gap-3">
+                        <div class="text-xs">
+                            <span class="font-semibold text-indigo-900 block">Lesson Material Attached</span>
+                            <span class="text-indigo-700"><?= htmlspecialchars($activeLesson['file_name']) ?></span>
+                        </div>
+                        <a href="actions/download.php?type=lesson&id=<?= (int)$activeLesson['lesson_id'] ?>" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-3.5 py-2 rounded-lg shrink-0">
+                            Download Material
+                        </a>
+                    </div>
+                <?php endif; ?>
+
                 <div class="prose prose-slate max-w-none text-sm text-slate-700 whitespace-pre-line">
                     <?= htmlspecialchars($activeLesson['content_markdown']) ?>
                 </div>
@@ -134,7 +146,7 @@ $assignments = $assignStmt->fetchAll();
                     <summary class="text-xs font-bold uppercase text-indigo-700 cursor-pointer select-none">
                         + Create New Assignment
                     </summary>
-                    <form action="actions/add_lesson.php" method="POST" class="mt-4 space-y-3">
+                    <form action="actions/add_lesson.php" method="POST" enctype="multipart/form-data" class="mt-4 space-y-3">
                         <input type="hidden" name="action_type" value="add_assignment">
                         <input type="hidden" name="course_id" value="<?= $courseId ?>">
 
@@ -165,6 +177,11 @@ $assignments = $assignStmt->fetchAll();
                             <textarea name="instructions" rows="3" required placeholder="Describe deliverables, allowed file formats, and rubric..." class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs bg-white"></textarea>
                         </div>
 
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Attach Assignment File / Brief (Optional)</label>
+                            <input type="file" name="assignment_file" class="w-full text-xs border border-slate-300 rounded-lg p-1.5 bg-white">
+                        </div>
+
                         <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-lg">
                             Publish Assignment
                         </button>
@@ -188,6 +205,15 @@ $assignments = $assignStmt->fetchAll();
                                     &bull; Weight: <?= htmlspecialchars($assign['weight_percentage']) ?>%
                                 </p>
                                 <p class="text-xs text-slate-600 mt-2 whitespace-pre-line"><?= htmlspecialchars($assign['instructions']) ?></p>
+
+                                <?php if (!empty($assign['file_path'])): ?>
+                                    <div class="mt-2.5 inline-flex items-center gap-2 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-lg text-xs">
+                                        <span class="font-semibold text-indigo-900">Attachment:</span>
+                                        <a href="actions/download.php?type=assignment&id=<?= (int)$assign['assignment_id'] ?>" class="text-indigo-600 font-medium underline">
+                                            <?= htmlspecialchars($assign['file_name']) ?>
+                                        </a>
+                                    </div>
+                                <?php endif; ?>
                             </div>
 
                             <?php if ($role === 'lecturer'): ?>
@@ -210,7 +236,7 @@ $assignments = $assignStmt->fetchAll();
                                 <?php if ($sub): ?>
                                     <div class="text-xs bg-slate-50 p-3 rounded-lg mb-3">
                                         <span class="font-semibold text-indigo-700">Status: <?= strtoupper($sub['status']) ?></span> &bull;
-                                        File: <a href="actions/download.php?id=<?= (int)$sub['submission_id'] ?>" target="_blank" class="text-indigo-600 underline"><?= htmlspecialchars($sub['file_name']) ?></a>
+                                        File: <a href="actions/download.php?id=<?= (int)$sub['submission_id'] ?>" class="text-indigo-600 underline"><?= htmlspecialchars($sub['file_name']) ?></a>
                                         <?php if ($sub['score'] !== null): ?>
                                             <div class="mt-1 font-bold text-emerald-700">Score: <?= htmlspecialchars($sub['score']) ?> / <?= htmlspecialchars($assign['max_score']) ?> — "<?= htmlspecialchars($sub['instructor_feedback']) ?>"</div>
                                         <?php endif; ?>
@@ -238,13 +264,13 @@ $assignments = $assignStmt->fetchAll();
                                     <p class="text-xs text-slate-400 italic">No student submissions uploaded yet.</p>
                                 <?php endif; ?>
                                 <?php foreach ($subs as $s): ?>
-                                    <?php $fileExists = is_file(__DIR__ . '/' . ltrim($s['file_path'], '/')); ?>
+                                    <?php $fileExists = is_file(__DIR__ . '/' . ltrim($s['file_path'], '/\\')); ?>
                                     <form action="actions/grade_submission.php" method="POST" class="flex flex-wrap items-center gap-2 bg-slate-50 p-2.5 rounded-lg text-xs">
                                         <input type="hidden" name="course_id" value="<?= $courseId ?>">
                                         <input type="hidden" name="submission_id" value="<?= (int)$s['submission_id'] ?>">
                                         <span class="font-semibold"><?= htmlspecialchars($s['full_name']) ?> (<?= htmlspecialchars($s['staff_student_id']) ?>)</span>
                                         <?php if ($fileExists): ?>
-                                            <a href="actions/download.php?id=<?= (int)$s['submission_id'] ?>" target="_blank" class="text-indigo-600 underline"><?= htmlspecialchars($s['file_name']) ?></a>
+                                            <a href="actions/download.php?id=<?= (int)$s['submission_id'] ?>" class="text-indigo-600 underline"><?= htmlspecialchars($s['file_name']) ?></a>
                                         <?php else: ?>
                                             <span class="text-red-600"><?= htmlspecialchars($s['file_name']) ?> (missing on disk)</span>
                                         <?php endif; ?>
@@ -268,16 +294,21 @@ $assignments = $assignStmt->fetchAll();
             <div class="space-y-2">
                 <?php foreach ($lessons as $idx => $lesson): ?>
                     <a href="course.php?id=<?= $courseId ?>&lesson=<?= (int)$lesson['lesson_id'] ?>" class="flex items-center justify-between p-3 rounded-xl border text-sm <?= (int)$lesson['lesson_id'] === $activeLessonId ? 'border-indigo-600 bg-indigo-50/60 font-semibold text-indigo-900' : 'border-slate-100 hover:bg-slate-50' ?>">
-                        <span><?= ($idx + 1) ?>. <?= htmlspecialchars($lesson['title']) ?></span>
+                        <span class="truncate">
+                            <?= ($idx + 1) ?>. <?= htmlspecialchars($lesson['title']) ?>
+                            <?php if (!empty($lesson['file_path'])): ?>
+                                <span class="ml-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">File</span>
+                            <?php endif; ?>
+                        </span>
                         <?php if ($role === 'student' && $lesson['is_completed']): ?>
-                            <span class="text-emerald-600 font-bold text-xs">✓</span>
+                            <span class="text-emerald-600 font-bold text-xs ml-2">✓</span>
                         <?php endif; ?>
                     </a>
                 <?php endforeach; ?>
             </div>
 
             <?php if ($role === 'lecturer'): ?>
-                <form action="actions/add_lesson.php" method="POST" class="mt-6 pt-5 border-t border-slate-100 space-y-3">
+                <form action="actions/add_lesson.php" method="POST" enctype="multipart/form-data" class="mt-6 pt-5 border-t border-slate-100 space-y-3">
                     <h4 class="text-xs font-bold uppercase text-slate-700">Add New Lesson</h4>
                     <input type="hidden" name="action_type" value="add_lesson">
                     <input type="hidden" name="course_id" value="<?= $courseId ?>">
@@ -292,6 +323,10 @@ $assignments = $assignStmt->fetchAll();
                     </div>
                     <textarea name="content_markdown" rows="3" placeholder="Lesson notes / markdown..." class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs"></textarea>
                     <textarea name="code_snippet" rows="2" placeholder="Optional code snippet..." class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono"></textarea>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Attach Slides / PDF / Material (Optional)</label>
+                        <input type="file" name="lesson_file" class="w-full text-xs border border-slate-300 rounded-lg p-1.5">
+                    </div>
                     <button type="submit" class="w-full bg-slate-900 text-white text-xs font-medium py-2 rounded-lg">+ Add Lesson</button>
                 </form>
             <?php endif; ?>
