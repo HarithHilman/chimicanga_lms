@@ -1,12 +1,13 @@
 <?php
 require_once __DIR__ . '/includes/header.php';
+requireRole(['student']);
 
 $stmt = $pdo->prepare("
     SELECT c.course_code, c.title AS course_title, a.title AS assignment_title, a.max_score, a.weight_percentage,
            s.submission_id, s.file_name, s.status, s.score, s.instructor_feedback, s.submitted_at
     FROM assignments a
     JOIN courses c ON a.course_id = c.course_id
-    JOIN enrollments e ON c.course_id = e.course_id AND e.user_id = :uid1
+    JOIN enrolments e ON c.course_id = e.course_id AND e.student_id = :uid1 AND e.status = 'enrolled'
     LEFT JOIN assignment_submissions s ON a.assignment_id = s.assignment_id AND s.user_id = :uid2
     ORDER BY c.course_code, a.due_date
 ");
@@ -29,6 +30,11 @@ $records = $stmt->fetchAll();
             </tr>
         </thead>
         <tbody class="divide-y divide-slate-100">
+            <?php if (empty($records)): ?>
+                <tr>
+                    <td colspan="6" class="py-6 px-4 text-center text-slate-500">No assignments or grades found yet.</td>
+                </tr>
+            <?php endif; ?>
             <?php foreach ($records as $row): ?>
                 <tr>
                     <td class="py-3.5 px-4 font-medium text-slate-900"><?= htmlspecialchars($row['course_code']) ?></td>
@@ -57,6 +63,4 @@ $records = $stmt->fetchAll();
     </table>
 </div>
 
-</main>
-</body>
-</html>
+<?php require_once __DIR__ . '/includes/footer.php'; ?>

@@ -1,8 +1,3 @@
--- ============================================================================
--- CHIMICANGA LMS - ADMIN MODULE DATABASE SCHEMA (MySQL / MariaDB)
--- Single-tier Admin RBAC | Clean Relational Structure
--- ============================================================================
-
 CREATE DATABASE IF NOT EXISTS `chimicanga_lms`
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
@@ -10,7 +5,10 @@ CREATE DATABASE IF NOT EXISTS `chimicanga_lms`
 USE `chimicanga_lms`;
 
 SET FOREIGN_KEY_CHECKS = 0;
-
+DROP TABLE IF EXISTS `assignment_submissions`;
+DROP TABLE IF EXISTS `assignments`;
+DROP TABLE IF EXISTS `lesson_progress`;
+DROP TABLE IF EXISTS `lessons`;
 DROP TABLE IF EXISTS `activity_logs`;
 DROP TABLE IF EXISTS `notifications`;
 DROP TABLE IF EXISTS `announcements`;
@@ -20,7 +18,6 @@ DROP TABLE IF EXISTS `courses`;
 DROP TABLE IF EXISTS `categories`;
 DROP TABLE IF EXISTS `system_settings`;
 DROP TABLE IF EXISTS `users`;
-
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- 1. UNIFIED USERS TABLE (admin, lecturer, student)
@@ -61,7 +58,7 @@ CREATE TABLE `courses` (
   CONSTRAINT `fk_courses_category` FOREIGN KEY (`category_id`) REFERENCES `categories`(`category_id`) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
--- 4. COURSE LECTURERS PIVOT TABLE (Assign/Remove lecturers)
+-- 4. COURSE LECTURERS PIVOT TABLE
 CREATE TABLE `course_lecturers` (
   `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `course_id` INT UNSIGNED NOT NULL,
@@ -84,7 +81,62 @@ CREATE TABLE `enrolments` (
   CONSTRAINT `fk_enrol_student` FOREIGN KEY (`student_id`) REFERENCES `users`(`user_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
--- 6. ANNOUNCEMENTS TABLE
+-- 6. LESSONS & PROGRESS
+CREATE TABLE `lessons` (
+  `lesson_id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `course_id` INT UNSIGNED NOT NULL,
+  `module_order` INT UNSIGNED NOT NULL DEFAULT 1,
+  `title` VARCHAR(200) NOT NULL,
+  `lesson_type` ENUM('video', 'reading', 'quiz') NOT NULL DEFAULT 'video',
+  `duration_minutes` INT UNSIGNED NOT NULL DEFAULT 15,
+  `content_markdown` LONGTEXT NULL,
+  `code_snippet` TEXT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_lessons_course` FOREIGN KEY (`course_id`) REFERENCES `courses`(`course_id`) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE `lesson_progress` (
+  `progress_id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT UNSIGNED NOT NULL,
+  `lesson_id` INT UNSIGNED NOT NULL,
+  `is_completed` TINYINT(1) NOT NULL DEFAULT 0,
+  `completed_at` TIMESTAMP NULL,
+  UNIQUE KEY `uq_user_lesson` (`user_id`, `lesson_id`),
+  CONSTRAINT `fk_progress_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`user_id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_progress_lesson` FOREIGN KEY (`lesson_id`) REFERENCES `lessons`(`lesson_id`) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- 7. ASSIGNMENTS & SUBMISSIONS
+CREATE TABLE `assignments` (
+  `assignment_id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `course_id` INT UNSIGNED NOT NULL,
+  `title` VARCHAR(200) NOT NULL,
+  `instructions` TEXT NOT NULL,
+  `due_date` DATETIME NOT NULL,
+  `max_score` DECIMAL(5,2) NOT NULL DEFAULT 100.00,
+  `weight_percentage` DECIMAL(5,2) NOT NULL DEFAULT 15.00,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_assignments_course` FOREIGN KEY (`course_id`) REFERENCES `courses`(`course_id`) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE `assignment_submissions` (
+  `submission_id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `assignment_id` INT UNSIGNED NOT NULL,
+  `user_id` INT UNSIGNED NOT NULL,
+  `file_name` VARCHAR(255) NOT NULL,
+  `file_path` VARCHAR(255) NOT NULL,
+  `student_notes` TEXT NULL,
+  `status` ENUM('pending', 'submitted', 'graded', 'late') NOT NULL DEFAULT 'submitted',
+  `score` DECIMAL(5,2) NULL,
+  `instructor_feedback` TEXT NULL,
+  `submitted_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `graded_at` TIMESTAMP NULL,
+  UNIQUE KEY `uq_assignment_student` (`assignment_id`, `user_id`),
+  CONSTRAINT `fk_submissions_assignment` FOREIGN KEY (`assignment_id`) REFERENCES `assignments`(`assignment_id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_submissions_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`user_id`) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- 8. ANNOUNCEMENTS, NOTIFICATIONS, LOGS, SETTINGS
 CREATE TABLE `announcements` (
   `announcement_id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `created_by` INT UNSIGNED NOT NULL,
@@ -97,7 +149,6 @@ CREATE TABLE `announcements` (
   CONSTRAINT `fk_ann_user` FOREIGN KEY (`created_by`) REFERENCES `users`(`user_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
--- 7. NOTIFICATIONS TABLE
 CREATE TABLE `notifications` (
   `notification_id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `user_id` INT UNSIGNED NOT NULL,
@@ -108,7 +159,6 @@ CREATE TABLE `notifications` (
   CONSTRAINT `fk_notif_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`user_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
--- 8. RECENT SYSTEM ACTIVITIES LOG
 CREATE TABLE `activity_logs` (
   `log_id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `user_id` INT UNSIGNED NULL,
@@ -118,7 +168,6 @@ CREATE TABLE `activity_logs` (
   CONSTRAINT `fk_log_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`user_id`) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
--- 9. SYSTEM SETTINGS TABLE
 CREATE TABLE `system_settings` (
   `setting_key` VARCHAR(60) PRIMARY KEY,
   `setting_value` TEXT NOT NULL,
@@ -126,47 +175,12 @@ CREATE TABLE `system_settings` (
 ) ENGINE=InnoDB;
 
 -- ============================================================================
--- INITIAL SEED DATA (Default Admin Login: admin@chimicanga.edu / admin123)
+-- DEFAULT USERS FOR ALL 3 ROLES (Password for all: admin123 / password)
 -- ============================================================================
-
 INSERT INTO `users` (`user_id`, `staff_student_id`, `full_name`, `email`, `password_hash`, `role`, `department`, `phone`, `status`) VALUES
 (1, 'ADM001', 'System Administrator', 'admin@chimicanga.edu', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin', 'IT & Academic Operations', '012-3456789', 'active'),
 (2, 'LEC101', 'Dr. Amina Rahman', 'amina@chimicanga.edu', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'lecturer', 'Software Engineering', '013-2223344', 'active'),
-(3, 'LEC102', 'Prof. Lim Wei Jie', 'weijie@chimicanga.edu', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'lecturer', 'Computer Science', '014-5556677', 'active'),
-(4, 'STU202601', 'Ahmad Daniyal', 'daniyal@chimicanga.edu', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student', 'Software Engineering', '011-8889900', 'active'),
-(5, 'STU202602', 'Nurul Izzah', 'izzah@chimicanga.edu', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student', 'Information Systems', '017-4445566', 'active'),
-(6, 'STU202603', 'Kevin Tan', 'kevin@chimicanga.edu', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student', 'Computer Science', '019-7778899', 'inactive');
-
-INSERT INTO `categories` (`category_id`, `name`, `description`, `status`) VALUES
-(1, 'Software Engineering', 'Core software design, architecture, testing, and development courses.', 'active'),
-(2, 'Database & Data Systems', 'Relational databases, SQL optimization, and data management.', 'active'),
-(3, 'Web & Mobile Development', 'Frontend, backend, and full-stack application engineering.', 'active');
-
-INSERT INTO `courses` (`course_id`, `category_id`, `course_code`, `title`, `description`, `credit_hours`, `status`) VALUES
-(1, 1, 'CSEB3213', 'Software Architecture & Design Patterns', 'Principles of clean architecture, SOLID, and reusable design patterns.', 3, 'published'),
-(2, 2, 'CSNB3123', 'Database Systems & Administration', 'Normalization, transactions, indexing, and relational database design.', 3, 'published'),
-(3, 3, 'CSEB3413', 'Web Application Engineering', 'Building structured web systems with PHP, MySQL, and modern UI.', 4, 'draft');
-
-INSERT INTO `course_lecturers` (`course_id`, `lecturer_id`) VALUES
-(1, 2),
-(2, 3);
-
-INSERT INTO `enrolments` (`course_id`, `student_id`, `status`) VALUES
-(1, 4, 'enrolled'),
-(1, 5, 'enrolled'),
-(2, 4, 'enrolled');
-
-INSERT INTO `announcements` (`created_by`, `title`, `body`, `target_role`, `status`, `published_at`) VALUES
-(1, 'Welcome to Chimicanga LMS', 'All courses are now open for student enrolment. Please check your assigned subjects.', 'all', 'published', NOW()),
-(1, 'Lecturer Course Outline Submission', 'All lecturers are reminded to finalize their course descriptions before Friday.', 'lecturer', 'published', NOW());
-
-INSERT INTO `notifications` (`user_id`, `title`, `message`, `is_read`) VALUES
-(1, 'System Ready', 'Chimicanga LMS Admin module initialized successfully.', 0),
-(1, 'New Student Registered', 'Student Kevin Tan (STU202603) account is pending activation.', 0);
-
-INSERT INTO `activity_logs` (`user_id`, `action`, `details`) VALUES
-(1, 'System Initialized', 'Chimicanga LMS database schema and default settings configured.'),
-(1, 'Course Published', 'Published CSEB3213 - Software Architecture & Design Patterns.');
+(3, 'STU202601', 'Ahmad Daniyal', 'daniyal@chimicanga.edu', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student', 'Software Engineering', '011-8889900', 'active');
 
 INSERT INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('lms_name', 'Chimicanga LMS'),
