@@ -1,8 +1,8 @@
 <?php
 require_once __DIR__ . '/../config/db.php';
 
-// Determine base URL prefix depending on whether the current script is inside /admin/ or root
-$isInSubfolder = (basename(dirname($_SERVER['SCRIPT_FILENAME'])) === 'admin' || basename(dirname($_SERVER['SCRIPT_FILENAME'])) === 'actions');
+$currentDir = basename(dirname($_SERVER['SCRIPT_FILENAME']));
+$isInSubfolder = ($currentDir === 'admin' || $currentDir === 'actions');
 $basePrefix = $isInSubfolder ? '../' : '';
 
 if (empty($_SESSION['user_id'])) {
@@ -20,15 +20,13 @@ if (!$currentUser) {
     exit;
 }
 
-// Keep backward compatibility with existing admin/* and actions/* files
 $currentAdmin = ($currentUser['role'] === 'admin') ? $currentUser : null;
 $lmsName = getSetting($pdo, 'lms_name', 'Chimicanga LMS');
 
 function getRoleHome(string $role, string $prefix = ''): string {
     return match ($role) {
-        'admin'    => "{$prefix}admin/dashboard.php",
-        'lecturer' => "{$prefix}index.php",
-        default    => "{$prefix}index.php",
+        'admin' => "{$prefix}admin/dashboard.php",
+        default => "{$prefix}index.php",
     };
 }
 
@@ -41,7 +39,16 @@ function requireRole(array $allowedRoles): void {
     }
 }
 
-// Automatically protect everything inside /admin/ so only 'admin' can access it
-if (basename(dirname($_SERVER['SCRIPT_FILENAME'])) === 'admin') {
+// Protect /admin/ directory
+if ($currentDir === 'admin') {
     requireRole(['admin']);
+}
+
+// Enforce temporary password change if reset by admin
+$scriptName = basename($_SERVER['PHP_SELF']);
+$allowedDuringReset = ['profile.php', 'profile_update.php', 'logout.php'];
+if ((int)$currentUser['must_change_password'] === 1 && !in_array($scriptName, $allowedDuringReset, true)) {
+    $targetProfile = ($currentUser['role'] === 'admin') ? "{$basePrefix}admin/profile.php" : "{$basePrefix}profile.php";
+    header("Location: $targetProfile");
+    exit;
 }

@@ -81,10 +81,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ");
         $stmt->execute([$assignmentId, $studentId, $originalName, $dbPath, $notes]);
 
+        // Notify assigned lecturer(s)
+        if (getSetting($pdo, 'enable_notifications', '1') === '1') {
+            $infoStmt = $pdo->prepare("
+                SELECT a.title AS assign_title, c.course_code
+                FROM assignments a
+                JOIN courses c ON a.course_id = c.course_id
+                WHERE a.assignment_id = ?
+            ");
+            $infoStmt->execute([$assignmentId]);
+            $info = $infoStmt->fetch();
+
+            if ($info) {
+                $lecStmt = $pdo->prepare("SELECT lecturer_id FROM course_lecturers WHERE course_id = ?");
+                $lecStmt->execute([$courseId]);
+                $notifStmt = $pdo->prepare("INSERT INTO notifications (user_id, title, message) VALUES (?, ?, ?)");
+                foreach ($lecStmt->fetchAll(PDO::FETCH_COLUMN) as $lecId) {
+                    $notifStmt->execute([
+                        (int)$lecId,
+                        "New Submission: {$info['course_code']}",
+                        "{$currentUser['full_name']} submitted '{$info['assign_title']}'."
+                    ]);
+                }
+            }
+        }
+
         logActivity($pdo, $studentId, 'Submitted Assignment', "Uploaded '$originalName' for assignment #$assignmentId");
         setFlash('success', "Submitted '$originalName' successfully.");
     } else {
-        setFlash('error', 'Failed to move uploaded file on server. Check folder permissions on uploads/.');
+        setFlash('error', 'Failed to move uploaded file on server.');
     }
 
     header("Location: ../course.php?id=$courseId");
