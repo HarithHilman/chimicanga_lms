@@ -41,18 +41,24 @@ if (!$isAuthorized) {
     die('Access denied: You do not have permission to download this file.');
 }
 
-$fullPath = realpath(__DIR__ . '/../' . ltrim($sub['file_path'], '/'));
 $uploadsRoot = realpath(__DIR__ . '/../uploads');
+$fullPath    = realpath(__DIR__ . '/../' . ltrim($sub['file_path'], '/\\'));
 
-if (!$fullPath || !$uploadsRoot || strpos($fullPath, $uploadsRoot) !== 0 || !is_file($fullPath)) {
+if (!$fullPath || !$uploadsRoot || strncmp($fullPath, $uploadsRoot, strlen($uploadsRoot)) !== 0 || !is_file($fullPath)) {
     http_response_code(404);
     die('File not found on server.');
 }
 
-$mimeType = mime_content_type($fullPath) ?: 'application/octet-stream';
+$mimeType = function_exists('mime_content_type') ? (mime_content_type($fullPath) ?: 'application/octet-stream') : 'application/octet-stream';
+
+if (ob_get_level()) {
+    ob_end_clean();
+}
+
 header('Content-Description: File Transfer');
 header('Content-Type: ' . $mimeType);
-header('Content-Disposition: inline; filename="' . basename($sub['file_name']) . '"');
+header('Content-Disposition: attachment; filename="' . basename($sub['file_name']) . '"');
 header('Content-Length: ' . filesize($fullPath));
+header('Cache-Control: no-cache, must-revalidate');
 readfile($fullPath);
 exit;
