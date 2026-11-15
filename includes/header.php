@@ -6,6 +6,9 @@ $role = $currentUser['role'];
 $unreadStmt = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
 $unreadStmt->execute([$currentUser['user_id']]);
 $unreadCount = (int) $unreadStmt->fetchColumn();
+
+$notifLink   = ($role === 'admin') ? "{$basePrefix}admin/dashboard.php#notifications" : "{$basePrefix}profile.php#notifications";
+$profileLink = ($role === 'admin') ? "{$basePrefix}admin/profile.php" : "{$basePrefix}profile.php";
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -53,6 +56,10 @@ $unreadCount = (int) $unreadStmt->fetchColumn();
             <a href="<?= $basePrefix ?>index.php" class="flex items-center px-3 py-2.5 rounded-lg <?= in_array($currentPage, ['index.php', 'course.php']) ? 'bg-indigo-600 text-white font-medium' : 'hover:bg-slate-800 hover:text-white' ?>">
                 My Assigned Courses
             </a>
+            <div class="pt-4 pb-1 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Account</div>
+            <a href="<?= $basePrefix ?>profile.php" class="flex items-center px-3 py-2 rounded-lg <?= $currentPage === 'profile.php' ? 'bg-indigo-600 text-white font-medium' : 'hover:bg-slate-800 hover:text-white' ?>">
+                My Profile
+            </a>
 
         <?php else: /* student */ ?>
             <a href="<?= $basePrefix ?>index.php" class="flex items-center px-3 py-2.5 rounded-lg <?= in_array($currentPage, ['index.php', 'course.php']) ? 'bg-indigo-600 text-white font-medium' : 'hover:bg-slate-800 hover:text-white' ?>">
@@ -60,6 +67,10 @@ $unreadCount = (int) $unreadStmt->fetchColumn();
             </a>
             <a href="<?= $basePrefix ?>grades.php" class="flex items-center px-3 py-2.5 rounded-lg <?= $currentPage === 'grades.php' ? 'bg-indigo-600 text-white font-medium' : 'hover:bg-slate-800 hover:text-white' ?>">
                 My Grades
+            </a>
+            <div class="pt-4 pb-1 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Account</div>
+            <a href="<?= $basePrefix ?>profile.php" class="flex items-center px-3 py-2 rounded-lg <?= $currentPage === 'profile.php' ? 'bg-indigo-600 text-white font-medium' : 'hover:bg-slate-800 hover:text-white' ?>">
+                My Profile
             </a>
         <?php endif; ?>
 
@@ -78,13 +89,16 @@ $unreadCount = (int) $unreadStmt->fetchColumn();
             <?= htmlspecialchars($lmsName) ?> &mdash; <span class="capitalize"><?= $role ?></span> Control Panel
         </div>
         <div class="flex items-center gap-4">
-            <span class="text-xs px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 font-semibold capitalize">
-                <?= htmlspecialchars($role) ?>
-            </span>
+            <a href="<?= $notifLink ?>" class="relative text-sm text-slate-600 hover:text-indigo-600 font-medium">
+                Notifications
+                <?php if ($unreadCount > 0): ?>
+                    <span class="ml-1 px-2 py-0.5 text-xs font-bold bg-indigo-600 text-white rounded-full"><?= $unreadCount ?></span>
+                <?php endif; ?>
+            </a>
             <div class="h-4 w-px bg-slate-200"></div>
-            <span class="text-sm font-medium text-slate-700">
-                <?= htmlspecialchars($currentUser['full_name']) ?>
-            </span>
+            <a href="<?= $profileLink ?>" class="flex items-center gap-2 text-sm font-medium text-slate-700 hover:text-indigo-600">
+                <span><?= htmlspecialchars($currentUser['full_name']) ?></span>
+            </a>
         </div>
     </header>
 
