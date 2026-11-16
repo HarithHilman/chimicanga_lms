@@ -33,8 +33,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ((int)$assignment['is_expired'] === 1) {
-        logActivity($pdo, $studentId, 'Blocked Late Submission (SR8)', "Attempted late upload for '{$assignment['title']}' (Due: {$assignment['due_date']})");
-        setFlash('error', "Submission rejected (SR8): Deadline passed on {$assignment['due_date']}.");
+        logActivity($pdo, $studentId, 'Blocked Late Submission', "Attempted late upload for '{$assignment['title']}' (Due: {$assignment['due_date']})");
+        setFlash('error', "Submission rejected: Deadline passed on {$assignment['due_date']}.");
         header("Location: ../course.php?id=$courseId");
         exit;
     }
